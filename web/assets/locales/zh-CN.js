@@ -696,6 +696,12 @@ window.I18N_LOCALES['zh-CN'] = {
   'logs.type': '类型',
   'logs.message': '消息',
   'logs.details': '详情',
+  'logs.detailTitle': '日志详情',
+  'logs.basicInfo': '基本信息',
+  'logs.requestBody': '请求内容',
+  'logs.responseBody': '响应内容',
+  'logs.noRequestBody': '无请求体数据（未启用详细日志或数据已过期）',
+  'logs.noResponseBody': '无响应体数据（流式响应或未启用详细日志）',
 
   // ============================================================
   // 模型测试

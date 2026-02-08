@@ -683,6 +683,27 @@ func (s *Server) getModelsByChannelType(ctx context.Context, channelType string)
 	return models, nil
 }
 
+// isDetailedLoggingEnabled 检查是否启用详细日志记录
+func (s *Server) isDetailedLoggingEnabled() bool {
+	setting := s.configService.GetSetting("enable_detailed_logging")
+	if setting == nil {
+		return false
+	}
+	return setting.Value == "true"
+}
+
+// getDetailedLogMaxBodySize 获取详细日志最大body大小
+func (s *Server) getDetailedLogMaxBodySize() int {
+	setting := s.configService.GetSetting("detailed_log_max_body_size")
+	if setting == nil {
+		return 10240
+	}
+	if size, err := strconv.Atoi(setting.Value); err == nil && size >= 0 {
+		return size
+	}
+	return 10240
+}
+
 // HandleChannelKeys 获取渠道的所有API Keys
 // GET /admin/channels/:id/keys
 func (s *Server) HandleChannelKeys(c *gin.Context) {

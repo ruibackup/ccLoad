@@ -7,6 +7,7 @@ let totalLogs = 0;
 let currentChannelType = 'all'; // 当前选中的渠道类型
 let authTokens = []; // 令牌列表
 let defaultTestContent = 'sonnet 4.0的发布日期是什么'; // 默认测试内容（从设置加载）
+let currentLogsData = []; // 当前页日志缓存（供详情弹窗使用）
 
 const ACTIVE_REQUESTS_POLL_INTERVAL_MS = 2000;
 let activeRequestsPollTimer = null;
@@ -404,6 +405,7 @@ function renderLogsError() {
 function renderLogs(data) {
   const tbody = document.getElementById('tbody');
   const colspan = getTableColspan();
+  currentLogsData = data;
 
   if (data.length === 0) {
     const emptyRow = TemplateEngine.render('tpl-log-empty', { colspan });
@@ -548,7 +550,7 @@ function renderLogs(data) {
       `<span style="color: var(--warning-600); font-weight: 500;">${formatCost(entry.cost)}${tierBadge}</span>` : '';
 
     // === 直接拼接行 HTML ===
-    htmlParts[i] = `<tr>
+    htmlParts[i] = `<tr data-log-id="${entry.id}">
           <td style="white-space: nowrap;">${formatTime(entry.time)}</td>
           <td class="config-info" style="white-space: nowrap; font-family: monospace; font-size: 0.85em; color: var(--neutral-600);">${clientIPDisplay}</td>
           <td style="text-align: center; white-space: nowrap;">${apiKeyDisplay}</td>
@@ -984,27 +986,43 @@ document.addEventListener('DOMContentLoaded', async function () {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeTestKeyModal();
+      closeLogDetailModal();
     }
   });
 
-  // 事件委托：处理日志表格中的按钮点击
+  // 事件委托：处理日志表格中的按钮点击和行点击
   const tbody = document.getElementById('tbody');
   if (tbody) {
     tbody.addEventListener('click', (e) => {
       const btn = e.target.closest('.test-key-btn[data-action]');
-      if (!btn) return;
+      if (btn) {
+        e.stopPropagation();
 
-      const action = btn.dataset.action;
-      const channelId = parseInt(btn.dataset.channelId);
-      const channelName = btn.dataset.channelName || '';
-      const apiKey = btn.dataset.apiKey || '';
-      const apiKeyHash = btn.dataset.apiKeyHash || '';
-      const model = btn.dataset.model || '';
+        const action = btn.dataset.action;
+        const channelId = parseInt(btn.dataset.channelId);
+        const channelName = btn.dataset.channelName || '';
+        const apiKey = btn.dataset.apiKey || '';
+        const apiKeyHash = btn.dataset.apiKeyHash || '';
+        const model = btn.dataset.model || '';
 
-      if (action === 'test') {
-        testKey(channelId, channelName, apiKey, model, apiKeyHash);
-      } else if (action === 'delete') {
-        deleteKeyFromLog(channelId, channelName, apiKey, apiKeyHash);
+        if (action === 'test') {
+          testKey(channelId, channelName, apiKey, model, apiKeyHash);
+        } else if (action === 'delete') {
+          deleteKeyFromLog(channelId, channelName, apiKey, apiKeyHash);
+        }
+        return;
+      }
+
+      if (e.target.closest('a')) {
+        return;
+      }
+
+      const row = e.target.closest('tr[data-log-id]');
+      if (row) {
+        const logId = parseInt(row.dataset.logId);
+        if (!isNaN(logId)) {
+          showLogDetail(logId);
+        }
       }
     });
   }
@@ -1330,5 +1348,64 @@ async function deleteKeyFromLog(channelId, channelName, maskedApiKey, apiKeyHash
   } catch (e) {
     console.error('删除Key失败', e);
     alert(e.message || '删除Key失败');
+  }
+}
+
+// ========== 日志详情功能 ==========
+function showLogDetail(logId) {
+  const log = currentLogsData.find(l => l.id === logId);
+  if (!log) {
+    console.error('未找到日志:', logId);
+    return;
+  }
+
+  document.getElementById('detail_time').textContent = formatTime(log.time);
+  document.getElementById('detail_channel').textContent = log.channel_name || (log.channel_id ? `渠道 #${log.channel_id}` : '-');
+  document.getElementById('detail_model').textContent = log.actual_model && log.actual_model !== log.model
+    ? `${log.model} → ${log.actual_model}`
+    : (log.model || '-');
+  document.getElementById('detail_status').textContent = log.status_code || '-';
+
+  let timingText = '-';
+  if (log.is_streaming && log.first_byte_time) {
+    timingText = `${log.first_byte_time.toFixed(3)}s / ${log.duration?.toFixed(3) || '-'}s`;
+  } else if (log.duration) {
+    timingText = `${log.duration.toFixed(3)}s`;
+  }
+  document.getElementById('detail_timing').textContent = timingText;
+  document.getElementById('detail_cost').textContent = log.cost ? formatCost(log.cost) : '-';
+
+  const requestBodyEl = document.getElementById('detail_request_body');
+  if (log.request_body && log.request_body.trim()) {
+    requestBodyEl.textContent = formatJsonForDisplay(log.request_body);
+    requestBodyEl.classList.remove('no-data-hint');
+  } else {
+    requestBodyEl.textContent = t('logs.noRequestBody');
+    requestBodyEl.classList.add('no-data-hint');
+  }
+
+  const responseBodyEl = document.getElementById('detail_response_body');
+  if (log.response_body && log.response_body.trim()) {
+    responseBodyEl.textContent = formatJsonForDisplay(log.response_body);
+    responseBodyEl.classList.remove('no-data-hint');
+  } else {
+    responseBodyEl.textContent = t('logs.noResponseBody');
+    responseBodyEl.classList.add('no-data-hint');
+  }
+
+  document.getElementById('logDetailModal').classList.add('show');
+}
+
+function closeLogDetailModal() {
+  document.getElementById('logDetailModal').classList.remove('show');
+}
+
+function formatJsonForDisplay(str) {
+  if (!str) return '';
+  try {
+    const parsed = JSON.parse(str);
+    return JSON.stringify(parsed, null, 2);
+  } catch (e) {
+    return str;
   }
 }

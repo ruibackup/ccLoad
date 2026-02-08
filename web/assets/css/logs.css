@@ -417,3 +417,81 @@
     .logs-table tr.pending-row:hover td {
       background: var(--warning-100);
     }
+
+    /* 日志详情模态框样式 */
+    .log-detail-modal {
+      max-width: 900px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .detail-section {
+      margin-bottom: var(--space-4);
+    }
+
+    .detail-section h3 {
+      font-size: 1em;
+      font-weight: 600;
+      color: var(--neutral-700);
+      margin-bottom: var(--space-2);
+      padding-bottom: var(--space-1);
+      border-bottom: 1px solid var(--neutral-200);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--space-3);
+    }
+
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .detail-label {
+      font-size: 0.85em;
+      color: var(--neutral-500);
+      font-weight: 500;
+    }
+
+    .detail-value {
+      font-size: 0.95em;
+      color: var(--neutral-800);
+    }
+
+    .code-block {
+      background: var(--neutral-50);
+      border: 1px solid var(--neutral-200);
+      border-radius: 8px;
+      padding: var(--space-3);
+      overflow-x: auto;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .json-content {
+      margin: 0;
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+      font-size: 0.85em;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--neutral-700);
+    }
+
+    .no-data-hint {
+      color: var(--neutral-500);
+      font-style: italic;
+    }
+
+    /* 可点击的日志行 */
+    .logs-table tbody tr {
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    .logs-table tbody tr:hover {
+      background-color: var(--primary-50);
+    }

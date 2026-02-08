@@ -29,10 +29,12 @@ func scanLogEntry(scanner interface {
 	var serviceTier sql.NullString
 	var inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, cache5mTokens, cache1hTokens sql.NullInt64
 	var cost sql.NullFloat64
+	var requestBody, responseBody sql.NullString
 
 	if err := scanner.Scan(&e.ID, &timeMs, &e.Model, &actualModel, &e.ChannelID,
 		&e.StatusCode, &e.Message, &duration, &isStreamingInt, &firstByteTime, &apiKeyUsed, &apiKeyHash, &e.AuthTokenID, &clientIP, &baseURL, &serviceTier,
-		&inputTokens, &outputTokens, &cacheReadTokens, &cacheCreationTokens, &cache5mTokens, &cache1hTokens, &cost); err != nil {
+		&inputTokens, &outputTokens, &cacheReadTokens, &cacheCreationTokens, &cache5mTokens, &cache1hTokens, &cost,
+		&requestBody, &responseBody); err != nil {
 		return nil, err
 	}
 
@@ -84,6 +86,12 @@ func scanLogEntry(scanner interface {
 	if cost.Valid {
 		e.Cost = cost.Float64
 	}
+	if requestBody.Valid {
+		e.RequestBody = requestBody.String
+	}
+	if responseBody.Valid {
+		e.ResponseBody = responseBody.String
+	}
 
 	return &e, nil
 }
@@ -133,12 +141,12 @@ func (s *SQLStore) AddLog(ctx context.Context, e *model.LogEntry) error {
 	// 直接写入日志数据库（简化预编译语句缓存）
 	query := `
 		INSERT INTO logs(time, minute_bucket, model, actual_model, channel_id, status_code, message, duration, is_streaming, first_byte_time, api_key_used, api_key_hash, auth_token_id, client_ip, base_url, service_tier,
-			input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_5m_input_tokens, cache_1h_input_tokens, cost)
-		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_5m_input_tokens, cache_1h_input_tokens, cost, request_body, response_body)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := s.db.ExecContext(ctx, query, timeMs, minuteBucket, e.Model, e.ActualModel, e.ChannelID, e.StatusCode, e.Message, e.Duration, e.IsStreaming, e.FirstByteTime, maskedKey, apiKeyHash, e.AuthTokenID, e.ClientIP, e.BaseURL, e.ServiceTier,
-		e.InputTokens, e.OutputTokens, e.CacheReadInputTokens, e.CacheCreationInputTokens, e.Cache5mInputTokens, e.Cache1hInputTokens, e.Cost)
+		e.InputTokens, e.OutputTokens, e.CacheReadInputTokens, e.CacheCreationInputTokens, e.Cache5mInputTokens, e.Cache1hInputTokens, e.Cost, e.RequestBody, e.ResponseBody)
 	return err
 }
 
@@ -157,8 +165,8 @@ func (s *SQLStore) BatchAddLogs(ctx context.Context, logs []*model.LogEntry) err
 
 	stmt, err := tx.PrepareContext(ctx, `
         INSERT INTO logs(time, minute_bucket, model, actual_model, channel_id, status_code, message, duration, is_streaming, first_byte_time, api_key_used, api_key_hash, auth_token_id, client_ip, base_url, service_tier,
-			input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_5m_input_tokens, cache_1h_input_tokens, cost)
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_5m_input_tokens, cache_1h_input_tokens, cost, request_body, response_body)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 	if err != nil {
 		return err
@@ -204,6 +212,8 @@ func (s *SQLStore) BatchAddLogs(ctx context.Context, logs []*model.LogEntry) err
 			e.Cache5mInputTokens,
 			e.Cache1hInputTokens,
 			e.Cost,
+			e.RequestBody,
+			e.ResponseBody,
 		); err != nil {
 			return err
 		}
@@ -218,7 +228,7 @@ func (s *SQLStore) ListLogs(ctx context.Context, since time.Time, limit, offset 
 	// 消除 N+1：渠道过滤/名称解析用一次批量查询完成
 	baseQuery := `
 			SELECT id, time, model, actual_model, channel_id, status_code, message, duration, is_streaming, first_byte_time, api_key_used, api_key_hash, auth_token_id, client_ip, base_url, service_tier,
-				input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_5m_input_tokens, cache_1h_input_tokens, cost
+				input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_5m_input_tokens, cache_1h_input_tokens, cost, request_body, response_body
 			FROM logs`
 
 	// time字段现在是BIGINT毫秒时间戳，需要转换为Unix毫秒进行比较
@@ -299,7 +309,7 @@ func (s *SQLStore) CountLogs(ctx context.Context, since time.Time, filter *model
 func (s *SQLStore) ListLogsRange(ctx context.Context, since, until time.Time, limit, offset int, filter *model.LogFilter) ([]*model.LogEntry, error) {
 	baseQuery := `
 		SELECT id, time, model, actual_model, channel_id, status_code, message, duration, is_streaming, first_byte_time, api_key_used, api_key_hash, auth_token_id, client_ip, base_url, service_tier,
-			input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_5m_input_tokens, cache_1h_input_tokens, cost
+			input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_5m_input_tokens, cache_1h_input_tokens, cost, request_body, response_body
 		FROM logs`
 
 	sinceMs := since.UnixMilli()

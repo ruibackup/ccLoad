@@ -188,6 +188,63 @@
     </main>
   </div>
 
+
+  <!-- 日志详情模态框 -->
+  <div id="logDetailModal" class="modal">
+    <div class="modal-content log-detail-modal">
+      <div class="modal-header">
+        <h2 data-i18n="logs.detailTitle">日志详情</h2>
+        <button class="close-btn" onclick="closeLogDetailModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-section">
+          <h3 data-i18n="logs.basicInfo">基本信息</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label" data-i18n="logs.colTime">时间</span>
+              <span class="detail-value" id="detail_time"></span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label" data-i18n="logs.colChannel">渠道</span>
+              <span class="detail-value" id="detail_channel"></span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label" data-i18n="common.model">模型</span>
+              <span class="detail-value" id="detail_model"></span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label" data-i18n="logs.statusCode">状态码</span>
+              <span class="detail-value" id="detail_status"></span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label" data-i18n="logs.colTiming">首字/耗时</span>
+              <span class="detail-value" id="detail_timing"></span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label" data-i18n="logs.colCost">成本</span>
+              <span class="detail-value" id="detail_cost"></span>
+            </div>
+          </div>
+        </div>
+        <div class="detail-section">
+          <h3 data-i18n="logs.requestBody">请求内容</h3>
+          <div class="code-block">
+            <pre id="detail_request_body" class="json-content"></pre>
+          </div>
+        </div>
+        <div class="detail-section">
+          <h3 data-i18n="logs.responseBody">响应内容</h3>
+          <div class="code-block">
+            <pre id="detail_response_body" class="json-content"></pre>
+          </div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeLogDetailModal()" data-i18n="common.close">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 测试 API Key 模态框 -->
   <div id="testKeyModal" class="modal">
     <div class="modal-content test-modal-content">

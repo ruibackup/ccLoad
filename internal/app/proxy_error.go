@@ -103,7 +103,7 @@ func (s *Server) logProxyResult(
 	res *fwResult,
 	errMsg string,
 ) {
-	s.AddLogAsync(buildLogEntry(logEntryParams{
+	params := logEntryParams{
 		RequestModel: reqCtx.originalModel,
 		ActualModel:  actualModel,
 		ChannelID:    cfg.ID,
@@ -117,7 +117,21 @@ func (s *Server) logProxyResult(
 		Result:       res,
 		ErrMsg:       errMsg,
 		StartTime:    reqCtx.attemptStartTime,
-	}))
+	}
+
+	// 详细日志（可选功能，2026-02新增）
+	if s.isDetailedLoggingEnabled() {
+		maxSize := s.getDetailedLogMaxBodySize()
+		params.RequestBody = util.SanitizeRequestBody(reqCtx.body, maxSize)
+		// 响应体：流式响应标记为 [streaming response]，非流式响应记录实际内容
+		if reqCtx.isStreaming {
+			params.ResponseBody = "[streaming response]"
+		} else if res != nil && len(res.Body) > 0 {
+			params.ResponseBody = util.SanitizeResponseBody(res.Body, maxSize)
+		}
+	}
+
+	s.AddLogAsync(buildLogEntry(params))
 }
 
 func (s *Server) updateTokenStatsForProxy(

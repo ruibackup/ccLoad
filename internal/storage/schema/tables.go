@@ -132,6 +132,8 @@ func DefineLogsTable() *TableBuilder {
 		Column("cache_5m_input_tokens INT NOT NULL DEFAULT 0").       // 5分钟缓存写入Token数（新增2025-12）
 		Column("cache_1h_input_tokens INT NOT NULL DEFAULT 0").       // 1小时缓存写入Token数（新增2025-12）
 		Column("cost DOUBLE NOT NULL DEFAULT 0.0").
+		Column("request_body TEXT NOT NULL DEFAULT ''").  // 请求体（可选存储，2026-02新增）
+		Column("response_body TEXT NOT NULL DEFAULT ''"). // 响应体（可选存储，2026-02新增）
 		Index("idx_logs_time_model", "time, model").
 		Index("idx_logs_time_status", "time, status_code").
 		Index("idx_logs_time_channel_model", "time, channel_id, model").

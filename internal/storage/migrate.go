@@ -70,6 +70,10 @@ func migrate(ctx context.Context, db *sql.DB, dialect Dialect) error {
 			if err := ensureLogsNewColumns(ctx, db, dialect); err != nil {
 				return fmt.Errorf("migrate logs new columns: %w", err)
 			}
+			// 增量迁移：确保logs表有详细日志字段（2026-02新增）
+			if err := ensureLogsDetailedFields(ctx, db, dialect); err != nil {
+				return fmt.Errorf("migrate logs detailed fields: %w", err)
+			}
 		}
 
 		// 增量迁移：确保channels表有daily_cost_limit字段（2026-01新增）
@@ -677,6 +681,9 @@ func initDefaultSettings(ctx context.Context, db *sql.DB, dialect Dialect) error
 		{"model_fuzzy_match", "false", "bool", "模型匹配失败时，使用子串模糊匹配(多匹配时选最新版本)", "false"},
 		{"channel_test_content", "sonnet 4.0的发布日期是什么", "string", "渠道测试默认内容", "sonnet 4.0的发布日期是什么"},
 		{"channel_stats_range", "today", "string", "渠道管理费用统计范围", "today"},
+		// 详细日志配置（2026-02新增）
+		{"enable_detailed_logging", "false", "bool", "启用详细日志记录（存储请求/响应体）", "false"},
+		{"detailed_log_max_body_size", "10240", "int", "详细日志最大body大小（字节，0=不限制）", "10240"},
 		// 健康度排序配置
 		{"enable_health_score", "false", "bool", "启用基于健康度的渠道动态排序", "false"},
 		{"success_rate_penalty_weight", "100", "int", "成功率惩罚权重(乘以失败率)", "100"},
@@ -1303,5 +1310,19 @@ func ensureAuthTokensCostLimit(ctx context.Context, db *sql.DB, dialect Dialect)
 	return ensureSQLiteColumns(ctx, db, "auth_tokens", []sqliteColumnDef{
 		{name: "cost_used_microusd", definition: "INTEGER NOT NULL DEFAULT 0"},
 		{name: "cost_limit_microusd", definition: "INTEGER NOT NULL DEFAULT 0"},
+	})
+}
+
+// ensureLogsDetailedFields 确保logs表有详细日志字段（2026-02新增）
+func ensureLogsDetailedFields(ctx context.Context, db *sql.DB, dialect Dialect) error {
+	if dialect == DialectMySQL {
+		return ensureMySQLColumns(ctx, db, "logs", []mysqlColumnDef{
+			{name: "request_body", definition: "TEXT NOT NULL DEFAULT ''"},
+			{name: "response_body", definition: "TEXT NOT NULL DEFAULT ''"},
+		})
+	}
+	return ensureSQLiteColumns(ctx, db, "logs", []sqliteColumnDef{
+		{name: "request_body", definition: "TEXT NOT NULL DEFAULT ''"},
+		{name: "response_body", definition: "TEXT NOT NULL DEFAULT ''"},
 	})
 }

@@ -696,6 +696,12 @@ window.I18N_LOCALES['en'] = {
   'logs.type': 'Type',
   'logs.message': 'Message',
   'logs.details': 'Details',
+  'logs.detailTitle': 'Log Details',
+  'logs.basicInfo': 'Basic Information',
+  'logs.requestBody': 'Request Body',
+  'logs.responseBody': 'Response Body',
+  'logs.noRequestBody': 'No request body data (detailed logging disabled or data expired)',
+  'logs.noResponseBody': 'No response body data (streaming response or detailed logging disabled)',
 
   // ============================================================
   // Model Test

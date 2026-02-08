@@ -543,6 +543,9 @@ type logEntryParams struct {
 	Result       *fwResult
 	ErrMsg       string
 	StartTime    time.Time // 渠道尝试开始时间（用于日志记录）
+	// 详细日志字段（可选，2026-02新增）
+	RequestBody  string
+	ResponseBody string
 }
 
 // buildLogEntry 构建日志条目（消除重复代码，遵循DRY原则）
@@ -552,16 +555,18 @@ func buildLogEntry(p logEntryParams) *model.LogEntry {
 		logTime = time.Now() // 兜底：未传入开始时间时使用当前时间
 	}
 	entry := &model.LogEntry{
-		Time:        model.JSONTime{Time: logTime},
-		Model:       p.RequestModel,
-		ChannelID:   p.ChannelID,
-		StatusCode:  p.StatusCode,
-		Duration:    p.Duration,
-		IsStreaming: p.IsStreaming,
-		APIKeyUsed:  p.APIKeyUsed,
-		AuthTokenID: p.AuthTokenID,
-		ClientIP:    p.ClientIP,
-		BaseURL:     p.BaseURL,
+		Time:         model.JSONTime{Time: logTime},
+		Model:        p.RequestModel,
+		ChannelID:    p.ChannelID,
+		StatusCode:   p.StatusCode,
+		Duration:     p.Duration,
+		IsStreaming:  p.IsStreaming,
+		APIKeyUsed:   p.APIKeyUsed,
+		AuthTokenID:  p.AuthTokenID,
+		ClientIP:     p.ClientIP,
+		BaseURL:      p.BaseURL,
+		RequestBody:  p.RequestBody,
+		ResponseBody: p.ResponseBody,
 	}
 
 	// 记录实际转发的模型（仅当发生重定向时）
