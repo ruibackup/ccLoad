@@ -81,6 +81,10 @@ func migrate(ctx context.Context, db *sql.DB, dialect Dialect) error {
 			if err := migrateChannelsURLToText(ctx, db, dialect); err != nil {
 				return fmt.Errorf("migrate channels url to text: %w", err)
 			}
+			// 增量迁移：确保channels表有proxy_url字段（2026-02新增）
+			if err := ensureChannelsProxyURL(ctx, db, dialect); err != nil {
+				return fmt.Errorf("migrate channels proxy_url: %w", err)
+			}
 		}
 
 		// 增量迁移：修复 api_keys.api_key 历史长度漂移（旧版可能为 VARCHAR(64)）
@@ -1149,6 +1153,32 @@ func ensureChannelsDailyCostLimit(ctx context.Context, db *sql.DB, dialect Diale
 	// SQLite: 使用通用添加列函数
 	return ensureSQLiteColumns(ctx, db, "channels", []sqliteColumnDef{
 		{name: "daily_cost_limit", definition: "REAL NOT NULL DEFAULT 0"},
+	})
+}
+
+// ensureChannelsProxyURL 确保channels表有proxy_url字段（2026-02新增）
+func ensureChannelsProxyURL(ctx context.Context, db *sql.DB, dialect Dialect) error {
+	if dialect == DialectMySQL {
+		var count int
+		err := db.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='channels' AND COLUMN_NAME='proxy_url'",
+		).Scan(&count)
+		if err != nil {
+			return fmt.Errorf("check proxy_url field: %w", err)
+		}
+		if count == 0 {
+			if _, err := db.ExecContext(ctx,
+				"ALTER TABLE channels ADD COLUMN proxy_url VARCHAR(512) NOT NULL DEFAULT ''"); err != nil {
+				return fmt.Errorf("add proxy_url column: %w", err)
+			}
+			log.Printf("[MIGRATE] Added channels.proxy_url column")
+		}
+		return nil
+	}
+
+	// SQLite: 使用通用添加列函数
+	return ensureSQLiteColumns(ctx, db, "channels", []sqliteColumnDef{
+		{name: "proxy_url", definition: "TEXT NOT NULL DEFAULT ''"},
 	})
 }
 

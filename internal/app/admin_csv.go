@@ -44,7 +44,7 @@ func (s *Server) HandleExportChannelsCSV(c *gin.Context) {
 	writer := csv.NewWriter(buf)
 	defer writer.Flush()
 
-	header := []string{"id", "name", "api_key", "url", "priority", "models", "model_redirects", "channel_type", "key_strategy", "enabled"}
+	header := []string{"id", "name", "api_key", "url", "priority", "models", "model_redirects", "channel_type", "key_strategy", "enabled", "proxy_url"}
 	if err := writer.Write(header); err != nil {
 		RespondError(c, http.StatusInternalServerError, err)
 		return
@@ -96,6 +96,7 @@ func (s *Server) HandleExportChannelsCSV(c *gin.Context) {
 			cfg.GetChannelType(), // 使用GetChannelType确保默认值
 			keyStrategy,
 			strconv.FormatBool(cfg.Enabled),
+			cfg.ProxyURL,
 		}
 		if err := writer.Write(record); err != nil {
 			RespondError(c, http.StatusInternalServerError, err)
@@ -282,6 +283,7 @@ func (s *Server) HandleImportChannelsCSV(c *gin.Context) {
 			ModelEntries: modelEntries,
 			ChannelType:  channelType,
 			Enabled:      enabled,
+			ProxyURL:     fetch("proxy_url"),
 		}
 
 		// 解析并构建API Keys
@@ -372,6 +374,8 @@ func normalizeCSVHeader(name string) string {
 		return "model_redirects"
 	case "key_strategy", "key-strategy", "keystrategy", "策略", "使用策略":
 		return "key_strategy"
+	case "proxy_url", "proxy-url", "proxyurl", "proxy":
+		return "proxy_url"
 	case "status":
 		return "enabled"
 	default:

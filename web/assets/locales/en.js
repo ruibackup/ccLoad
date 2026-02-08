@@ -210,6 +210,8 @@ window.I18N_LOCALES['en'] = {
   'channels.priority': 'Priority',
   'channels.dailyCostLimit': 'Daily Limit',
   'channels.dailyCostLimitPlaceholder': '0=No limit',
+  'channels.proxyUrl': 'Proxy URL',
+  'channels.proxyUrlPlaceholder': 'e.g. socks5://127.0.0.1:1080 (empty = no proxy)',
 
   // Delete Confirmation (flattened keys)
   'channels.confirmDeleteTitle': 'Confirm Delete',

@@ -26,6 +26,7 @@ type FetchModelsRequest struct {
 	ChannelType string `json:"channel_type" binding:"required"`
 	URL         string `json:"url" binding:"required"`
 	APIKey      string `json:"api_key" binding:"required"`
+	ProxyURL    string `json:"proxy_url,omitempty"` // 代理URL（可选）
 }
 
 // FetchModelsResponse 获取模型列表响应
@@ -98,7 +99,15 @@ func (s *Server) HandleFetchModels(c *gin.Context) {
 	if channelType == "" {
 		channelType = channel.ChannelType
 	}
-	response, err := s.fetchModelsWithURLFallback(c.Request.Context(), channel.ID, channel.GetURLs(), channelType, apiKey)
+
+	// 使用渠道配置的代理客户端
+	httpClient, clientErr := s.getClientForChannel(channel)
+	if clientErr != nil {
+		RespondErrorMsg(c, http.StatusInternalServerError, "获取代理客户端失败: "+clientErr.Error())
+		return
+	}
+
+	response, err := s.fetchModelsWithURLFallback(c.Request.Context(), channel.ID, channel.GetURLs(), channelType, apiKey, httpClient)
 	if err != nil {
 		// [INFO] 修复：统一返回200，通过success字段区分成功/失败（上游错误是预期内的）
 		RespondErrorMsg(c, http.StatusOK, err.Error())
@@ -120,6 +129,7 @@ func (s *Server) HandleFetchModelsPreview(c *gin.Context) {
 	req.ChannelType = strings.TrimSpace(req.ChannelType)
 	req.URL = strings.TrimSpace(req.URL)
 	req.APIKey = strings.TrimSpace(req.APIKey)
+	req.ProxyURL = strings.TrimSpace(req.ProxyURL)
 	if req.ChannelType == "" || req.URL == "" || req.APIKey == "" {
 		RespondErrorMsg(c, http.StatusBadRequest, "channel_type、url、api_key为必填字段")
 		return
@@ -131,8 +141,21 @@ func (s *Server) HandleFetchModelsPreview(c *gin.Context) {
 		return
 	}
 
+	// 获取代理客户端（如果指定了proxy_url）
+	var httpClient *http.Client
+	if req.ProxyURL != "" {
+		var clientErr error
+		httpClient, clientErr = s.proxyClients.GetClient(req.ProxyURL)
+		if clientErr != nil {
+			RespondErrorMsg(c, http.StatusBadRequest, "代理地址无效: "+clientErr.Error())
+			return
+		}
+	} else {
+		httpClient = s.client
+	}
+
 	tmpCfg := &model.Config{URL: normalizedURL}
-	response, err := s.fetchModelsWithURLFallback(c.Request.Context(), 0, tmpCfg.GetURLs(), req.ChannelType, req.APIKey)
+	response, err := s.fetchModelsWithURLFallback(c.Request.Context(), 0, tmpCfg.GetURLs(), req.ChannelType, req.APIKey, httpClient)
 	if err != nil {
 		// [INFO] 修复：统一返回200，通过success字段区分成功/失败（上游错误是预期内的）
 		RespondErrorMsg(c, http.StatusOK, err.Error())
@@ -210,7 +233,16 @@ func (s *Server) HandleBatchRefreshModels(c *gin.Context) {
 			channelType = cfg.ChannelType
 		}
 
-		resp, err := s.fetchModelsWithURLFallback(ctx, cfg.ID, cfg.GetURLs(), channelType, apiKey)
+		httpClient, clientErr := s.getClientForChannel(cfg)
+		if clientErr != nil {
+			item.Status = "failed"
+			item.Error = "获取代理客户端失败: " + clientErr.Error()
+			failed++
+			results = append(results, item)
+			continue
+		}
+
+		resp, err := s.fetchModelsWithURLFallback(ctx, cfg.ID, cfg.GetURLs(), channelType, apiKey, httpClient)
 		if err != nil {
 			item.Status = "failed"
 			item.Error = err.Error()
@@ -282,12 +314,13 @@ func (s *Server) fetchModelsWithURLFallback(
 	channelID int64,
 	urls []string,
 	channelType, apiKey string,
+	httpClient *http.Client,
 ) (*FetchModelsResponse, error) {
 	if len(urls) == 0 {
 		return nil, fmt.Errorf("渠道URL为空")
 	}
 	if len(urls) == 1 {
-		return fetchModelsForConfig(ctx, channelType, urls[0], apiKey)
+		return fetchModelsForConfig(ctx, channelType, urls[0], apiKey, httpClient)
 	}
 
 	selectorEnabled := s != nil && s.urlSelector != nil && channelID > 0
@@ -300,7 +333,7 @@ func (s *Server) fetchModelsWithURLFallback(
 	var lastErr error
 	for _, entry := range sortedURLs {
 		start := time.Now()
-		resp, err := fetchModelsForConfig(ctx, channelType, entry.url, apiKey)
+		resp, err := fetchModelsForConfig(ctx, channelType, entry.url, apiKey, httpClient)
 		if err == nil {
 			if selectorEnabled {
 				latency := time.Since(start)
@@ -371,7 +404,7 @@ func parseFetchModelsStatus(errMsg string) (statusCode int, body string, ok bool
 	return code, strings.TrimSpace(body), true
 }
 
-func fetchModelsForConfig(ctx context.Context, channelType, channelURL, apiKey string) (*FetchModelsResponse, error) {
+func fetchModelsForConfig(ctx context.Context, channelType, channelURL, apiKey string, httpClient *http.Client) (*FetchModelsResponse, error) {
 	normalizedType := util.NormalizeChannelType(channelType)
 	source := determineSource(channelType)
 
@@ -395,7 +428,7 @@ func fetchModelsForConfig(ctx context.Context, channelType, channelURL, apiKey s
 		fetcher := util.NewModelsFetcher(channelType)
 		fetcherStr = fmt.Sprintf("%T", fetcher)
 
-		modelNames, err = fetcher.FetchModels(ctx, channelURL, apiKey)
+		modelNames, err = fetcher.FetchModels(ctx, channelURL, apiKey, httpClient)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"获取模型列表失败(渠道类型:%s, 规范化类型:%s, 数据来源:%s): %w",

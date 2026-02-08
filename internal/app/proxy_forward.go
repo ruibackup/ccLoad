@@ -478,7 +478,11 @@ func (s *Server) forwardOnceAsync(ctx context.Context, cfg *model.Config, apiKey
 	}
 
 	// 3. 发送请求
-	resp, err := s.client.Do(req)
+	httpClient, clientErr := s.getClientForChannel(cfg)
+	if clientErr != nil {
+		return nil, 0, clientErr
+	}
+	resp, err := httpClient.Do(req)
 
 	// [INFO] 修复（2025-12）：客户端取消时主动关闭 response body，立即中断上游传输
 	// 问题：streamCopy 中的 Read 阻塞时，无法立即响应 context 取消，上游继续生成完整响应

@@ -97,7 +97,7 @@ func TestAnthropicModelsFetcher(t *testing.T) {
 	fetcher := &AnthropicModelsFetcher{}
 	ctx := context.Background()
 
-	models, err := fetcher.FetchModels(ctx, server.URL, "test-api-key")
+	models, err := fetcher.FetchModels(ctx, server.URL, "test-api-key", nil)
 	if err != nil {
 		t.Fatalf("获取失败: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestOpenAIModelsFetcher(t *testing.T) {
 	fetcher := &OpenAIModelsFetcher{}
 	ctx := context.Background()
 
-	models, err := fetcher.FetchModels(ctx, server.URL, "test-key")
+	models, err := fetcher.FetchModels(ctx, server.URL, "test-key", nil)
 	if err != nil {
 		t.Fatalf("获取失败: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestOpenAIModelsFetcher_APIError(t *testing.T) {
 	fetcher := &OpenAIModelsFetcher{}
 	ctx := context.Background()
 
-	_, err := fetcher.FetchModels(ctx, server.URL, "invalid-key")
+	_, err := fetcher.FetchModels(ctx, server.URL, "invalid-key", nil)
 	if err == nil {
 		t.Fatal("期望返回错误，但成功了")
 	}
@@ -235,7 +235,7 @@ func TestGeminiModelsFetcher(t *testing.T) {
 	fetcher := &GeminiModelsFetcher{}
 	ctx := context.Background()
 
-	models, err := fetcher.FetchModels(ctx, server.URL, "test-key")
+	models, err := fetcher.FetchModels(ctx, server.URL, "test-key", nil)
 	if err != nil {
 		t.Fatalf("获取失败: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestCodexModelsFetcher(t *testing.T) {
 	fetcher := &CodexModelsFetcher{}
 	ctx := context.Background()
 
-	models, err := fetcher.FetchModels(ctx, server.URL, "dummy-key")
+	models, err := fetcher.FetchModels(ctx, server.URL, "dummy-key", nil)
 	if err != nil {
 		t.Fatalf("获取失败: %v", err)
 	}

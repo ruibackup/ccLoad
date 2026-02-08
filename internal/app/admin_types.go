@@ -23,7 +23,8 @@ type ChannelRequest struct {
 	Priority       int                `json:"priority"`
 	Models         []model.ModelEntry `json:"models" binding:"required,min=1"` // 模型配置（包含重定向）
 	Enabled        bool               `json:"enabled"`
-	DailyCostLimit float64            `json:"daily_cost_limit"` // 每日成本限额（美元），0表示无限制
+	DailyCostLimit float64            `json:"daily_cost_limit"`          // 每日成本限额（美元），0表示无限制
+	ProxyURL       string             `json:"proxy_url,omitempty"`       // 代理URL（http/https/socks5/socks5h）
 }
 
 func validateChannelBaseURL(raw string) (string, error) {
@@ -149,6 +150,20 @@ func (cr *ChannelRequest) Validate() error {
 		cr.KeyStrategy = normalized // 应用标准化结果
 	}
 
+	// proxy_url 校验（可选字段，非空时必须合法）
+	cr.ProxyURL = strings.TrimSpace(cr.ProxyURL)
+	if cr.ProxyURL != "" {
+		proxyU, err := neturl.Parse(cr.ProxyURL)
+		if err != nil || proxyU.Host == "" {
+			return fmt.Errorf("invalid proxy_url: %q", cr.ProxyURL)
+		}
+		switch proxyU.Scheme {
+		case "http", "https", "socks5", "socks5h":
+		default:
+			return fmt.Errorf("invalid proxy_url scheme: %q (allowed: http, https, socks5, socks5h)", proxyU.Scheme)
+		}
+	}
+
 	return nil
 }
 
@@ -172,6 +187,7 @@ func (cr *ChannelRequest) ToConfig() *model.Config {
 		ModelEntries:   normalizedModels,
 		Enabled:        cr.Enabled,
 		DailyCostLimit: cr.DailyCostLimit,
+		ProxyURL:       cr.ProxyURL,
 	}
 }
 

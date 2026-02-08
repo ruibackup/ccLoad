@@ -210,6 +210,8 @@ window.I18N_LOCALES['zh-CN'] = {
   'channels.priority': '优先级',
   'channels.dailyCostLimit': '每日限额',
   'channels.dailyCostLimitPlaceholder': '0=无限制',
+  'channels.proxyUrl': '代理地址',
+  'channels.proxyUrlPlaceholder': '例: socks5://127.0.0.1:1080（留空不使用代理）',
 
   // 删除确认（扁平化键名）
   'channels.confirmDeleteTitle': '确认删除',

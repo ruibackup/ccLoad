@@ -52,6 +52,9 @@ type Config struct {
 	// 每日成本限额
 	DailyCostLimit float64 `json:"daily_cost_limit"` // 每日成本限额（美元），0表示无限制
 
+	// 渠道级代理
+	ProxyURL string `json:"proxy_url"` // 代理URL，空=不使用代理
+
 	CreatedAt JSONTime `json:"created_at"` // 使用JSONTime确保序列化格式一致（RFC3339）
 	UpdatedAt JSONTime `json:"updated_at"` // 使用JSONTime确保序列化格式一致（RFC3339）
 

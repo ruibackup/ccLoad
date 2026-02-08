@@ -279,7 +279,11 @@ func (s *Server) testChannelAPIWithURL(
 
 	// 发送请求
 	start := time.Now()
-	resp, err := s.client.Do(req)
+	httpClient, clientErr := s.getClientForChannel(cfg)
+	if clientErr != nil {
+		return map[string]any{"success": false, "error": "获取代理客户端失败: " + clientErr.Error()}
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return map[string]any{
 			"success":     false,

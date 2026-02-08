@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -44,6 +45,7 @@ type Server struct {
 	channelBalancer *SmoothWeightedRR     // 渠道负载均衡器（平滑加权轮询）
 	urlSelector     *URLSelector          // URL选择器（多URL场景的延迟追踪与冷却）
 	client          *http.Client          // HTTP客户端
+	proxyClients    *proxyClientPool      // 渠道级代理客户端池
 	activeRequests  *activeRequestManager // 进行中请求（内存状态，不持久化）
 
 	// 异步统计（有界队列，避免每请求起goroutine）
@@ -159,6 +161,7 @@ func NewServer(store storage.Store) *Server {
 			Transport: transport,
 			Timeout:   0, // 不设置全局超时，避免中断长时间任务
 		},
+		proxyClients: newProxyClientPool(skipTLSVerify),
 
 		// 并发控制：使用信号量限制最大并发请求数
 		concurrencySem: make(chan struct{}, maxConcurrency),
@@ -294,6 +297,19 @@ func (s *Server) getChannelCache() *storage.ChannelCache {
 		return nil
 	}
 	return s.channelCache
+}
+
+// getClientForChannel 获取渠道对应的HTTP Client
+// 渠道无代理 → 返回默认 s.client；有代理 → 从池中获取/创建专用 client
+func (s *Server) getClientForChannel(cfg *model.Config) (*http.Client, error) {
+	if cfg.ProxyURL == "" {
+		return s.client, nil
+	}
+	client, err := s.proxyClients.GetClient(cfg.ProxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("get proxy client for channel %d: %w", cfg.ID, err)
+	}
+	return client, nil
 }
 
 // buildHTTPTransport 构建HTTP Transport（DRY：统一配置逻辑）

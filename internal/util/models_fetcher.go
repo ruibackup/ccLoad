@@ -11,8 +11,9 @@ import (
 
 // ModelsFetcher 模型列表获取器接口
 // 不同渠道类型有不同的API实现
+// httpClient 参数可选：nil 使用默认全局 client，非 nil 使用指定 client（如代理 client）
 type ModelsFetcher interface {
-	FetchModels(ctx context.Context, baseURL string, apiKey string) ([]string, error)
+	FetchModels(ctx context.Context, baseURL string, apiKey string, httpClient *http.Client) ([]string, error)
 }
 
 // NewModelsFetcher 根据渠道类型创建对应的Fetcher
@@ -50,7 +51,17 @@ var defaultModelsFetcherClient = &http.Client{
 // doHTTPRequest 执行HTTP GET请求并返回响应体
 // 封装公共的HTTP请求、错误处理、超时控制逻辑
 func doHTTPRequest(req *http.Request) ([]byte, error) {
-	resp, err := defaultModelsFetcherClient.Do(req)
+	return doHTTPRequestWith(defaultModelsFetcherClient, req)
+}
+
+// DoHTTPRequestWith 使用指定的HTTP Client执行请求并返回响应体（导出版本，供外部传入自定义client）
+func DoHTTPRequestWith(client *http.Client, req *http.Request) ([]byte, error) {
+	return doHTTPRequestWith(client, req)
+}
+
+// doHTTPRequestWith 使用指定的HTTP Client执行请求并返回响应体
+func doHTTPRequestWith(client *http.Client, req *http.Request) ([]byte, error) {
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("请求失败: %w", err)
 	}
@@ -88,7 +99,7 @@ type anthropicModelsResponse struct {
 }
 
 // FetchModels 从 Anthropic API 获取可用模型列表。
-func (f *AnthropicModelsFetcher) FetchModels(ctx context.Context, baseURL string, apiKey string) ([]string, error) {
+func (f *AnthropicModelsFetcher) FetchModels(ctx context.Context, baseURL string, apiKey string, httpClient *http.Client) ([]string, error) {
 	// Anthropic Models API: https://docs.claude.com/en/api/models-list
 	endpoint := baseURL + "/v1/models"
 
@@ -103,8 +114,13 @@ func (f *AnthropicModelsFetcher) FetchModels(ctx context.Context, baseURL string
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 
-	// 使用公共HTTP请求函数 (ctx已包含在req中)
-	body, err := doHTTPRequest(req)
+	// 使用指定client或默认client
+	var body []byte
+	if httpClient != nil {
+		body, err = DoHTTPRequestWith(httpClient, req)
+	} else {
+		body, err = doHTTPRequest(req)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +150,7 @@ type openAIModelsResponse struct {
 }
 
 // FetchModels 从 OpenAI API 获取可用模型列表。
-func (f *OpenAIModelsFetcher) FetchModels(ctx context.Context, baseURL string, apiKey string) ([]string, error) {
+func (f *OpenAIModelsFetcher) FetchModels(ctx context.Context, baseURL string, apiKey string, httpClient *http.Client) ([]string, error) {
 	// OpenAI Models API: https://platform.openai.com/docs/api-reference/models/list
 	endpoint := baseURL + "/v1/models"
 
@@ -145,8 +161,13 @@ func (f *OpenAIModelsFetcher) FetchModels(ctx context.Context, baseURL string, a
 
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	// 使用公共HTTP请求函数 (ctx已包含在req中)
-	body, err := doHTTPRequest(req)
+	// 使用指定client或默认client
+	var body []byte
+	if httpClient != nil {
+		body, err = DoHTTPRequestWith(httpClient, req)
+	} else {
+		body, err = doHTTPRequest(req)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +197,7 @@ type geminiModelsResponse struct {
 }
 
 // FetchModels 从 Gemini API 获取可用模型列表。
-func (f *GeminiModelsFetcher) FetchModels(ctx context.Context, baseURL string, apiKey string) ([]string, error) {
+func (f *GeminiModelsFetcher) FetchModels(ctx context.Context, baseURL string, apiKey string, httpClient *http.Client) ([]string, error) {
 	// Gemini Models API: https://ai.google.dev/api/rest/v1beta/models/list
 	endpoint := baseURL + "/v1beta/models?key=" + apiKey
 
@@ -185,8 +206,13 @@ func (f *GeminiModelsFetcher) FetchModels(ctx context.Context, baseURL string, a
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
-	// 使用公共HTTP请求函数 (ctx已包含在req中)
-	body, err := doHTTPRequest(req)
+	// 使用指定client或默认client
+	var body []byte
+	if httpClient != nil {
+		body, err = DoHTTPRequestWith(httpClient, req)
+	} else {
+		body, err = doHTTPRequest(req)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -213,10 +239,10 @@ func (f *GeminiModelsFetcher) FetchModels(ctx context.Context, baseURL string, a
 type CodexModelsFetcher struct{}
 
 // FetchModels 从 Codex API 获取可用模型列表（使用 OpenAI 兼容接口）。
-func (f *CodexModelsFetcher) FetchModels(ctx context.Context, baseURL string, apiKey string) ([]string, error) {
+func (f *CodexModelsFetcher) FetchModels(ctx context.Context, baseURL string, apiKey string, httpClient *http.Client) ([]string, error) {
 	// Codex使用与OpenAI相同的标准接口 /v1/models
 	openAIFetcher := &OpenAIModelsFetcher{}
-	return openAIFetcher.FetchModels(ctx, baseURL, apiKey)
+	return openAIFetcher.FetchModels(ctx, baseURL, apiKey, httpClient)
 }
 
 // ============================================================

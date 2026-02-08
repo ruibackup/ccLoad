@@ -76,6 +76,7 @@ async function editChannel(id) {
   }
   document.getElementById('channelPriority').value = channel.priority;
   document.getElementById('channelDailyCostLimit').value = channel.daily_cost_limit || 0;
+  document.getElementById('channelProxyUrl').value = channel.proxy_url || '';
   document.getElementById('channelEnabled').checked = channel.enabled;
 
   // 加载模型配置（新格式：models是 {model, redirect_model} 数组）
@@ -159,6 +160,7 @@ async function saveChannel(event) {
     key_strategy: keyStrategy,
     priority: parseInt(document.getElementById('channelPriority').value) || 0,
     daily_cost_limit: parseFloat(document.getElementById('channelDailyCostLimit').value) || 0,
+    proxy_url: document.getElementById('channelProxyUrl').value.trim(),
     models: models,
     enabled: document.getElementById('channelEnabled').checked
   };
@@ -654,6 +656,7 @@ async function copyChannel(id, name) {
   }
   document.getElementById('channelPriority').value = channel.priority;
   document.getElementById('channelDailyCostLimit').value = channel.daily_cost_limit || 0;
+  document.getElementById('channelProxyUrl').value = channel.proxy_url || '';
   document.getElementById('channelEnabled').checked = true;
 
   // 加载模型配置（新格式：models是 {model, redirect_model} 数组）
