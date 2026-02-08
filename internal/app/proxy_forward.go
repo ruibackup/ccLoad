@@ -482,6 +482,14 @@ func (s *Server) forwardOnceAsync(ctx context.Context, cfg *model.Config, apiKey
 	if clientErr != nil {
 		return nil, 0, clientErr
 	}
+	if s.debugMode {
+		proxyInfo := "direct"
+		if cfg.ProxyURL != "" {
+			proxyInfo = "proxy=" + cfg.ProxyURL
+		}
+		log.Printf("[DEBUG] [转发] 渠道ID=%d 名称=%s URL=%s 方法=%s 代理=%s 流式=%v",
+			cfg.ID, cfg.Name, req.URL.String(), req.Method, proxyInfo, reqCtx.isStreaming)
+	}
 	resp, err := httpClient.Do(req)
 
 	// [INFO] 修复（2025-12）：客户端取消时主动关闭 response body，立即中断上游传输
@@ -506,6 +514,9 @@ func (s *Server) forwardOnceAsync(ctx context.Context, cfg *model.Config, apiKey
 	}
 
 	if err != nil {
+		if s.debugMode {
+			log.Printf("[DEBUG] [网络错误] 渠道ID=%d URL=%s 错误=%v", cfg.ID, req.URL.String(), err)
+		}
 		return s.handleRequestError(reqCtx, cfg, err)
 	}
 

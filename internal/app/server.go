@@ -58,6 +58,8 @@ type Server struct {
 	nonStreamTimeout time.Duration // 非流式请求超时
 	// 模型匹配配置（启动时从数据库加载，修改后重启生效）
 	modelFuzzyMatch bool // 未命中时启用模糊匹配（子串匹配+版本排序）
+	// 调试模式（环境变量 CCLOAD_DEBUG=1 启用）
+	debugMode bool
 
 	// 登录速率限制器（用于传递给AuthService）
 	loginRateLimiter *util.LoginRateLimiter
@@ -140,6 +142,35 @@ func NewServer(store storage.Store) *Server {
 		log.Print("[WARN] 已禁用上游 TLS 证书校验（InsecureSkipVerify=true）：仅用于临时排障/受控内网环境")
 	}
 
+	// 调试模式（仅环境变量）
+	debugMode := os.Getenv("CCLOAD_DEBUG") == "1"
+	if debugMode {
+		log.Print("[INFO] 已启用调试模式（CCLOAD_DEBUG=1）：将输出详细的代理和网络日志")
+		// 输出环境变量代理配置，帮助诊断网络问题
+		if hp := os.Getenv("HTTP_PROXY"); hp != "" {
+			log.Printf("[DEBUG] 环境变量 HTTP_PROXY=%s", hp)
+		}
+		if hp := os.Getenv("http_proxy"); hp != "" {
+			log.Printf("[DEBUG] 环境变量 http_proxy=%s", hp)
+		}
+		if hp := os.Getenv("HTTPS_PROXY"); hp != "" {
+			log.Printf("[DEBUG] 环境变量 HTTPS_PROXY=%s", hp)
+		}
+		if hp := os.Getenv("https_proxy"); hp != "" {
+			log.Printf("[DEBUG] 环境变量 https_proxy=%s", hp)
+		}
+		if np := os.Getenv("NO_PROXY"); np != "" {
+			log.Printf("[DEBUG] 环境变量 NO_PROXY=%s", np)
+		}
+		if np := os.Getenv("no_proxy"); np != "" {
+			log.Printf("[DEBUG] 环境变量 no_proxy=%s", np)
+		}
+		if os.Getenv("HTTP_PROXY") == "" && os.Getenv("http_proxy") == "" &&
+			os.Getenv("HTTPS_PROXY") == "" && os.Getenv("https_proxy") == "" {
+			log.Print("[DEBUG] 未检测到环境变量代理配置，默认client将直连上游")
+		}
+	}
+
 	// 构建HTTP Transport（使用统一函数，消除DRY违反）
 	transport := buildHTTPTransport(skipTLSVerify)
 	log.Print("[INFO] HTTP/2已启用（头部压缩+多路复用，HTTPS自动协商）")
@@ -155,6 +186,8 @@ func NewServer(store storage.Store) *Server {
 		nonStreamTimeout: nonStreamTimeout,
 		// 模型匹配配置（启动时加载，修改后重启生效）
 		modelFuzzyMatch: modelFuzzyMatch,
+		// 调试模式
+		debugMode: debugMode,
 
 		// HTTP客户端
 		client: &http.Client{
