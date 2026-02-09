@@ -704,6 +704,8 @@ window.I18N_LOCALES['zh-CN'] = {
   'logs.noResponseBody': '无响应体数据（流式响应或未启用详细日志）',
   'logs.showRawJson': '显示原始JSON',
   'logs.showReadable': '显示可读视图',
+  'logs.fullscreen': '全屏',
+  'logs.fullscreenPrompt': '全屏查看提示词',
 
   // ============================================================
   // 模型测试

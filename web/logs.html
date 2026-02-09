@@ -249,6 +249,18 @@
     </div>
   </div>
 
+  <div id="promptFullscreenModal" class="modal">
+    <div class="modal-content prompt-fullscreen-modal">
+      <div class="modal-header">
+        <h2 id="promptFullscreenTitle" data-i18n="logs.fullscreenPrompt">全屏查看提示词</h2>
+        <button class="close-btn" onclick="closePromptFullscreen()">&times;</button>
+      </div>
+      <div class="modal-body prompt-fullscreen-body">
+        <div id="promptFullscreenContent" class="prompt-fullscreen-content chat-md"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- 测试 API Key 模态框 -->
   <div id="testKeyModal" class="modal">
     <div class="modal-content test-modal-content">

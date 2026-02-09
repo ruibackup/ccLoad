@@ -704,6 +704,8 @@ window.I18N_LOCALES['en'] = {
   'logs.noResponseBody': 'No response body data (streaming response or detailed logging disabled)',
   'logs.showRawJson': 'Show Raw JSON',
   'logs.showReadable': 'Show Readable',
+  'logs.fullscreen': 'Fullscreen',
+  'logs.fullscreenPrompt': 'Fullscreen Prompt View',
 
   // ============================================================
   // Model Test
