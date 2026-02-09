@@ -227,8 +227,12 @@
           </div>
         </div>
         <div class="detail-section">
-          <h3 data-i18n="logs.requestBody">请求内容</h3>
-          <div class="code-block">
+          <h3>
+            <span data-i18n="logs.requestBody">请求内容</span>
+            <button class="toggle-raw-btn" id="toggleRawRequest" onclick="toggleRawRequest()" data-i18n="logs.showRawJson">显示原始JSON</button>
+          </h3>
+          <div id="detail_request_readable"></div>
+          <div id="detail_request_raw" class="code-block" style="display:none;">
             <pre id="detail_request_body" class="json-content"></pre>
           </div>
         </div>

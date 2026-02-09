@@ -18,6 +18,19 @@ go test -tags go_json -race ./internal/...  # 竞态检测
 go run -tags go_json .
 ```
 运行所需环境变量定义在.env文件中
+
+### 调试模式
+
+```bash
+# 启用调试模式（输出详细的代理和网络日志）
+CCLOAD_DEBUG=1 ./ccload
+
+# 组合HTTP/2调试
+CCLOAD_DEBUG=1 GODEBUG=http2debug=2 ./ccload
+```
+
+启用后输出：启动时的环境变量代理配置、每次请求的渠道/URL/代理信息、网络错误详情。
+
 ## 核心架构
 
 ```
@@ -186,6 +199,16 @@ Serena 优先于内置工具。按需获取，不读整文件。
 - Schema更新: `storage/migrate.go` 启动自动执行
 - 事务: `(*SQLStore).WithTransaction(ctx, func(tx) error)`
 - 缓存失效: `InvalidateChannelListCache()` / `InvalidateAPIKeysCache()`
+
+### 详细日志（可选存储请求/响应体）
+
+通过系统设置控制，默认关闭：
+- `enable_detailed_logging`: 启用后存储请求/响应体到logs表
+- `detailed_log_max_body_size`: 最大body大小（默认10KB，超过截断）
+- 敏感字段自动脱敏（api_key/authorization等），流式响应标记为`[streaming response]`
+- 数据库字段：`logs.request_body` / `logs.response_body`（TEXT，默认空字符串）
+- 前端：日志页面点击行查看详情，请求内容支持对话可读视图（兼容Anthropic/OpenAI/Codex/Gemini格式）
+- 工具函数：`util.SanitizeRequestBody()` / `util.SanitizeResponseBody()`
 
 ## 代码规范
 

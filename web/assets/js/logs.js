@@ -1312,7 +1312,6 @@ async function deleteKeyFromLog(channelId, channelName, maskedApiKey, apiKeyHash
 
   const confirmDel = confirm(`确定删除渠道“${channelName || ('#' + channelId)}”中的此Key (${maskedApiKey}) 吗？`);
   if (!confirmDel) return;
-
   try {
     // 通过 logs 返回的哈希优先精确匹配 key_index；无哈希时回退掩码匹配
     const apiKeys = await fetchDataWithAuth(`/admin/channels/${channelId}/keys`);
@@ -1375,13 +1374,26 @@ function showLogDetail(logId) {
   document.getElementById('detail_timing').textContent = timingText;
   document.getElementById('detail_cost').textContent = log.cost ? formatCost(log.cost) : '-';
 
-  const requestBodyEl = document.getElementById('detail_request_body');
+  const readableEl = document.getElementById('detail_request_readable');
+  const rawEl = document.getElementById('detail_request_raw');
+  const rawPreEl = document.getElementById('detail_request_body');
+  const toggleBtn = document.getElementById('toggleRawRequest');
+
+  rawEl.style.display = 'none';
+  readableEl.style.display = '';
+  toggleBtn.textContent = t('logs.showRawJson');
+  toggleBtn._showingRaw = false;
+
   if (log.request_body && log.request_body.trim()) {
-    requestBodyEl.textContent = formatJsonForDisplay(log.request_body);
-    requestBodyEl.classList.remove('no-data-hint');
+    rawPreEl.textContent = formatJsonForDisplay(log.request_body);
+    rawPreEl.classList.remove('no-data-hint');
+    readableEl.innerHTML = renderReadableRequest(log.request_body);
+    toggleBtn.style.display = '';
   } else {
-    requestBodyEl.textContent = t('logs.noRequestBody');
-    requestBodyEl.classList.add('no-data-hint');
+    rawPreEl.textContent = t('logs.noRequestBody');
+    rawPreEl.classList.add('no-data-hint');
+    readableEl.innerHTML = `<span class="no-data-hint">${escapeHtml(t('logs.noRequestBody'))}</span>`;
+    toggleBtn.style.display = 'none';
   }
 
   const responseBodyEl = document.getElementById('detail_response_body');
@@ -1408,4 +1420,116 @@ function formatJsonForDisplay(str) {
   } catch (e) {
     return str;
   }
+}
+
+function toggleRawRequest() {
+  const btn = document.getElementById('toggleRawRequest');
+  const rawEl = document.getElementById('detail_request_raw');
+  const readableEl = document.getElementById('detail_request_readable');
+  if (btn._showingRaw) {
+    rawEl.style.display = 'none';
+    readableEl.style.display = '';
+    btn.textContent = t('logs.showRawJson');
+    btn._showingRaw = false;
+  } else {
+    rawEl.style.display = '';
+    readableEl.style.display = 'none';
+    btn.textContent = t('logs.showReadable');
+    btn._showingRaw = true;
+  }
+}
+
+function extractTextFromContent(content) {
+  if (!content) return '';
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return JSON.stringify(content);
+
+  const parts = [];
+  for (const block of content) {
+    if (typeof block === 'string') {
+      parts.push(block);
+    } else if (block.text) {
+      parts.push(block.text);
+    } else if (block.type === 'tool_use') {
+      parts.push(`[Tool: ${block.name || 'unknown'}]`);
+    } else if (block.type === 'tool_result') {
+      const resultText = extractTextFromContent(block.content);
+      parts.push(`[Tool Result: ${resultText || block.tool_use_id || ''}]`);
+    } else if (block.type === 'image' || block.type === 'image_url') {
+      parts.push('[Image]');
+    } else if (block.type === 'input_text') {
+      parts.push(block.text);
+    } else {
+      parts.push(`[${block.type || 'unknown'}]`);
+    }
+  }
+  return parts.join('\n');
+}
+
+function renderChatMessage(role, text) {
+  const roleLabels = { system: 'System', user: 'User', assistant: 'Assistant', tool: 'Tool' };
+  const safeRole = ['system', 'user', 'assistant', 'tool'].includes(role) ? role : 'user';
+  const label = roleLabels[safeRole] || role;
+  return `<div class="chat-message chat-role-${safeRole}">
+    <div class="chat-message-header">${escapeHtml(label)}</div>
+    <div class="chat-message-body">${escapeHtml(text)}</div>
+  </div>`;
+}
+
+function renderReadableRequest(bodyStr) {
+  let data;
+  try {
+    data = JSON.parse(bodyStr);
+  } catch (e) {
+    return `<div class="code-block"><pre class="json-content">${escapeHtml(bodyStr)}</pre></div>`;
+  }
+  if (!data || typeof data !== 'object') {
+    return `<div class="code-block"><pre class="json-content">${escapeHtml(bodyStr)}</pre></div>`;
+  }
+
+  const parts = [];
+  const metaItems = [];
+  if (data.model) metaItems.push(`<span><b>Model:</b> ${escapeHtml(data.model)}</span>`);
+  if (data.stream !== undefined) metaItems.push(`<span><b>Stream:</b> ${data.stream}</span>`);
+  if (data.max_tokens) metaItems.push(`<span><b>Max Tokens:</b> ${data.max_tokens}</span>`);
+  if (data.temperature !== undefined) metaItems.push(`<span><b>Temperature:</b> ${data.temperature}</span>`);
+  if (metaItems.length > 0) {
+    parts.push(`<div class="chat-meta-info">${metaItems.join('')}</div>`);
+  }
+
+  if (data.system) {
+    const sysText = extractTextFromContent(data.system);
+    if (sysText) parts.push(renderChatMessage('system', sysText));
+  }
+  if (data.instructions) {
+    parts.push(renderChatMessage('system', data.instructions));
+  }
+  if (Array.isArray(data.messages)) {
+    for (const msg of data.messages) {
+      const role = msg.role || 'user';
+      const text = extractTextFromContent(msg.content);
+      if (text) parts.push(renderChatMessage(role, text));
+    }
+  }
+  if (Array.isArray(data.input)) {
+    for (const item of data.input) {
+      if (item.type === 'message') {
+        const role = item.role || 'user';
+        const text = extractTextFromContent(item.content);
+        if (text) parts.push(renderChatMessage(role, text));
+      }
+    }
+  }
+  if (Array.isArray(data.contents)) {
+    for (const item of data.contents) {
+      const role = item.role || 'user';
+      const text = extractTextFromContent(item.parts);
+      if (text) parts.push(renderChatMessage(role, text));
+    }
+  }
+
+  if (parts.length === 0) {
+    return `<div class="code-block"><pre class="json-content">${escapeHtml(formatJsonForDisplay(bodyStr))}</pre></div>`;
+  }
+  return parts.join('');
 }

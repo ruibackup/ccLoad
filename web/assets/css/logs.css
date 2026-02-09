@@ -495,3 +495,72 @@
     .logs-table tbody tr:hover {
       background-color: var(--primary-50);
     }
+
+    /* 原始JSON切换按钮 */
+    .toggle-raw-btn {
+      float: right;
+      font-size: 0.8em;
+      font-weight: 400;
+      color: var(--primary-600);
+      background: none;
+      border: 1px solid var(--primary-200);
+      border-radius: 4px;
+      padding: 2px 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .toggle-raw-btn:hover {
+      background: var(--primary-50);
+    }
+
+    /* 对话消息样式 */
+    .chat-message {
+      margin-bottom: var(--space-2);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .chat-message-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 5px 12px;
+      font-size: 0.8em;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .chat-message-body {
+      padding: 10px 14px;
+      font-size: 0.9em;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .chat-role-system .chat-message-header { background: var(--warning-100); color: var(--warning-700); }
+    .chat-role-system .chat-message-body { background: var(--warning-50); color: var(--neutral-700); }
+    .chat-role-user .chat-message-header { background: var(--primary-100); color: var(--primary-700); }
+    .chat-role-user .chat-message-body { background: var(--primary-50); color: var(--neutral-800); }
+    .chat-role-assistant .chat-message-header { background: var(--success-100); color: var(--success-700); }
+    .chat-role-assistant .chat-message-body { background: var(--success-50); color: var(--neutral-800); }
+    .chat-role-tool .chat-message-header { background: var(--neutral-200); color: var(--neutral-600); }
+    .chat-role-tool .chat-message-body { background: var(--neutral-100); color: var(--neutral-700); font-family: 'SF Mono', monospace; font-size: 0.85em; }
+
+    .chat-meta-info {
+      padding: 8px 14px;
+      font-size: 0.8em;
+      color: var(--neutral-500);
+      background: var(--neutral-50);
+      border: 1px dashed var(--neutral-200);
+      border-radius: 6px;
+      margin-bottom: var(--space-2);
+    }
+
+    .chat-meta-info span {
+      margin-right: var(--space-3);
+    }

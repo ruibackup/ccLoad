@@ -702,6 +702,8 @@ window.I18N_LOCALES['zh-CN'] = {
   'logs.responseBody': '响应内容',
   'logs.noRequestBody': '无请求体数据（未启用详细日志或数据已过期）',
   'logs.noResponseBody': '无响应体数据（流式响应或未启用详细日志）',
+  'logs.showRawJson': '显示原始JSON',
+  'logs.showReadable': '显示可读视图',
 
   // ============================================================
   // 模型测试
