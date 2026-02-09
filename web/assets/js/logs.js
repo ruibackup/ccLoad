@@ -1472,8 +1472,95 @@ function renderChatMessage(role, text) {
   const label = roleLabels[safeRole] || role;
   return `<div class="chat-message chat-role-${safeRole}">
     <div class="chat-message-header">${escapeHtml(label)}</div>
-    <div class="chat-message-body">${escapeHtml(text)}</div>
+    <div class="chat-message-body chat-md">${renderSimpleMarkdown(text)}</div>
   </div>`;
+}
+
+function renderSimpleMarkdown(text) {
+  if (!text) return '';
+
+  const codeBlocks = [];
+  const inlineCodes = [];
+
+  let processed = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push(`<pre class="md-code-block"><code>${escapeHtml(code.replace(/\n$/, ''))}</code></pre>`);
+    return `\x00CODEBLOCK${idx}\x00`;
+  });
+
+  processed = processed.replace(/`([^`\n]+)`/g, (_, code) => {
+    const idx = inlineCodes.length;
+    inlineCodes.push(`<code class="md-inline-code">${escapeHtml(code)}</code>`);
+    return `\x00INLINE${idx}\x00`;
+  });
+
+  processed = escapeHtml(processed);
+
+  const lines = processed.split('\n');
+  const result = [];
+  let inList = false;
+  let listType = null;
+
+  for (const rawLine of lines) {
+    const line = rawLine;
+
+    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+    if (headingMatch) {
+      if (inList) {
+        result.push(`</${listType}>`);
+        inList = false;
+      }
+      const level = headingMatch[1].length;
+      result.push(`<h${level + 2} class="md-heading">${headingMatch[2]}</h${level + 2}>`);
+      continue;
+    }
+
+    const ulMatch = line.match(/^[\s]*[-*]\s+(.+)$/);
+    if (ulMatch) {
+      if (!inList || listType !== 'ul') {
+        if (inList) result.push(`</${listType}>`);
+        result.push('<ul class="md-list">');
+        inList = true;
+        listType = 'ul';
+      }
+      result.push(`<li>${ulMatch[1]}</li>`);
+      continue;
+    }
+
+    const olMatch = line.match(/^[\s]*\d+\.\s+(.+)$/);
+    if (olMatch) {
+      if (!inList || listType !== 'ol') {
+        if (inList) result.push(`</${listType}>`);
+        result.push('<ol class="md-list">');
+        inList = true;
+        listType = 'ol';
+      }
+      result.push(`<li>${olMatch[1]}</li>`);
+      continue;
+    }
+
+    if (inList) {
+      result.push(`</${listType}>`);
+      inList = false;
+    }
+
+    if (line.trim() === '') {
+      result.push('<br>');
+      continue;
+    }
+
+    result.push(line);
+  }
+  if (inList) result.push(`</${listType}>`);
+
+  processed = result.join('\n');
+  processed = processed.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  processed = processed.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  processed = processed.replace(/~~(.+?)~~/g, '<del>$1</del>');
+  processed = processed.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, idx) => codeBlocks[parseInt(idx, 10)]);
+  processed = processed.replace(/\x00INLINE(\d+)\x00/g, (_, idx) => inlineCodes[parseInt(idx, 10)]);
+
+  return processed;
 }
 
 function renderReadableRequest(bodyStr) {
