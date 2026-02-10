@@ -979,6 +979,15 @@
         }
       }
 
+      const logDetailModal = document.getElementById('logDetailModal');
+      if (logDetailModal) {
+        logDetailModal.addEventListener('click', (e) => {
+          if (e.target === logDetailModal) {
+            closeLogDetailModal();
+          }
+        });
+      }
+
       // 事件委托：处理日志表格中的按钮点击和行点击
       const tbody = document.getElementById('tbody');
       if (tbody) {
