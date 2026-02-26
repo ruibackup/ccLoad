@@ -65,28 +65,19 @@ type BatchRefreshModelsItem struct {
 
 // HandleFetchModels 获取指定渠道的可用模型列表
 // 路由: GET /admin/channels/:id/models/fetch
-// 功能:
-//   - 根据渠道类型调用对应的Models API
-//   - Anthropic/Codex/OpenAI/Gemini: 调用官方/v1/models接口
-//   - 其它渠道: 返回预定义列表
-//
-// 设计模式: 适配器模式(Adapter Pattern) + 策略模式(Strategy Pattern)
 func (s *Server) HandleFetchModels(c *gin.Context) {
-	// 1. 解析路径参数
 	channelID, err := ParseInt64Param(c, "id")
 	if err != nil {
 		RespondErrorMsg(c, http.StatusBadRequest, "无效的渠道ID")
 		return
 	}
 
-	// 2. 查询渠道配置
 	channel, err := s.channelCache.GetConfig(c.Request.Context(), channelID)
 	if err != nil {
 		RespondErrorMsg(c, http.StatusNotFound, "渠道不存在")
 		return
 	}
 
-	// 3. 获取第一个API Key（用于调用Models API）
 	keys, err := s.store.GetAPIKeys(c.Request.Context(), channelID)
 	if err != nil || len(keys) == 0 {
 		RespondErrorMsg(c, http.StatusBadRequest, "该渠道没有可用的API Key")
@@ -94,13 +85,11 @@ func (s *Server) HandleFetchModels(c *gin.Context) {
 	}
 	apiKey := keys[0].APIKey
 
-	// 4. 根据渠道配置执行模型抓取（支持query参数覆盖渠道类型）
 	channelType := c.Query("channel_type")
 	if channelType == "" {
 		channelType = channel.ChannelType
 	}
 
-	// 使用渠道配置的代理客户端
 	httpClient, clientErr := s.getClientForChannel(channel)
 	if clientErr != nil {
 		RespondErrorMsg(c, http.StatusInternalServerError, "获取代理客户端失败: "+clientErr.Error())
@@ -109,7 +98,6 @@ func (s *Server) HandleFetchModels(c *gin.Context) {
 
 	response, err := s.fetchModelsWithURLFallback(c.Request.Context(), channel.ID, channel.GetURLs(), channelType, apiKey, httpClient)
 	if err != nil {
-		// [INFO] 修复：统一返回200，通过success字段区分成功/失败（上游错误是预期内的）
 		RespondErrorMsg(c, http.StatusOK, err.Error())
 		return
 	}
@@ -157,7 +145,6 @@ func (s *Server) HandleFetchModelsPreview(c *gin.Context) {
 	tmpCfg := &model.Config{URL: normalizedURL}
 	response, err := s.fetchModelsWithURLFallback(c.Request.Context(), 0, tmpCfg.GetURLs(), req.ChannelType, req.APIKey, httpClient)
 	if err != nil {
-		// [INFO] 修复：统一返回200，通过success字段区分成功/失败（上游错误是预期内的）
 		RespondErrorMsg(c, http.StatusOK, err.Error())
 		return
 	}
@@ -414,7 +401,6 @@ func fetchModelsForConfig(ctx context.Context, channelType, channelURL, apiKey s
 		err        error
 	)
 
-	// Anthropic/Codex等官方无开放接口的渠道，直接返回预设模型列表
 	if source == "predefined" {
 		modelNames = util.PredefinedModels(normalizedType)
 		if len(modelNames) == 0 {
@@ -437,12 +423,11 @@ func fetchModelsForConfig(ctx context.Context, channelType, channelURL, apiKey s
 		}
 	}
 
-	// 转换为 ModelEntry 格式，填充 RedirectModel 为 Model（方便前端编辑）
 	models := make([]model.ModelEntry, len(modelNames))
 	for i, name := range modelNames {
 		models[i] = model.ModelEntry{
 			Model:         name,
-			RedirectModel: name, // 填充为请求模型名称
+			RedirectModel: name,
 		}
 	}
 
@@ -462,9 +447,9 @@ func fetchModelsForConfig(ctx context.Context, channelType, channelURL, apiKey s
 func determineSource(channelType string) string {
 	switch util.NormalizeChannelType(channelType) {
 	case util.ChannelTypeOpenAI, util.ChannelTypeGemini, util.ChannelTypeAnthropic, util.ChannelTypeCodex:
-		return "api" // 从API获取
+		return "api"
 	default:
-		return "predefined" // 预定义列表
+		return "predefined"
 	}
 }
 
