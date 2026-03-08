@@ -18,6 +18,10 @@ type SQLStore struct {
 
 	// [FIX] 2025-12：保证 Close 幂等性，防止重复关闭导致 panic
 	closeOnce sync.Once
+
+	logColumnsMu  sync.RWMutex
+	logColumnSet  map[string]bool
+	logColumnsErr error
 }
 
 // GetHealthTimeline 查询健康时间线数据

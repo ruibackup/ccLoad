@@ -2,10 +2,15 @@ package sql_test
 
 import (
 	"context"
+	"database/sql"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"ccLoad/internal/model"
+	sqlstore "ccLoad/internal/storage/sql"
+
+	_ "modernc.org/sqlite"
 )
 
 func newJSONTime(t time.Time) model.JSONTime {
@@ -210,5 +215,60 @@ func TestLog_Pagination(t *testing.T) {
 		if _, ok := seen[entry.ID]; ok {
 			t.Fatalf("pages should not overlap, overlapping id=%d", entry.ID)
 		}
+	}
+}
+
+func TestLog_ListRange_CompatibleWithLegacySchema(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "legacy_logs.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := context.Background()
+	_, err = db.ExecContext(ctx, `
+		CREATE TABLE logs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			time INTEGER NOT NULL,
+			model TEXT NOT NULL DEFAULT '',
+			channel_id INTEGER NOT NULL DEFAULT 0,
+			status_code INTEGER NOT NULL DEFAULT 0,
+			message TEXT NOT NULL DEFAULT '',
+			duration REAL NOT NULL DEFAULT 0,
+			is_streaming INTEGER NOT NULL DEFAULT 0,
+			first_byte_time REAL NOT NULL DEFAULT 0,
+			api_key_used TEXT NOT NULL DEFAULT ''
+		)
+	`)
+	if err != nil {
+		t.Fatalf("create legacy logs table: %v", err)
+	}
+
+	now := time.Now().UnixMilli()
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO logs(time, model, channel_id, status_code, message, duration, is_streaming, first_byte_time, api_key_used)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, now, "gpt-4", 0, 200, "legacy row", 1.25, 0, 0.33, "sk-legacy")
+	if err != nil {
+		t.Fatalf("insert legacy log: %v", err)
+	}
+
+	store := sqlstore.NewSQLStore(db, "sqlite")
+	logs, err := store.ListLogsRange(ctx, time.UnixMilli(now-60_000), time.UnixMilli(now+60_000), 10, 0, nil)
+	if err != nil {
+		t.Fatalf("list logs range with legacy schema: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("expected 1 legacy log, got %d", len(logs))
+	}
+	if logs[0].Model != "gpt-4" {
+		t.Fatalf("expected model gpt-4, got %q", logs[0].Model)
+	}
+	if logs[0].BaseURL != "" || logs[0].RequestBody != "" || logs[0].ResponseBody != "" {
+		t.Fatalf("expected missing legacy fields to fallback to zero values, got base_url=%q request=%q response=%q", logs[0].BaseURL, logs[0].RequestBody, logs[0].ResponseBody)
 	}
 }

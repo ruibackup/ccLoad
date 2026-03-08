@@ -3,7 +3,9 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +14,103 @@ import (
 )
 
 const minuteMs int64 = 60_000 // 用于 minute_bucket 计算
+
+type logSelectColumn struct {
+	name        string
+	defaultExpr string
+	required    bool
+}
+
+var logSelectColumns = []logSelectColumn{
+	{name: "id", defaultExpr: "0", required: true},
+	{name: "time", defaultExpr: "0", required: true},
+	{name: "model", defaultExpr: "''", required: true},
+	{name: "actual_model", defaultExpr: "''"},
+	{name: "channel_id", defaultExpr: "0", required: true},
+	{name: "status_code", defaultExpr: "0", required: true},
+	{name: "message", defaultExpr: "''", required: true},
+	{name: "duration", defaultExpr: "0"},
+	{name: "is_streaming", defaultExpr: "0"},
+	{name: "first_byte_time", defaultExpr: "0"},
+	{name: "api_key_used", defaultExpr: "''"},
+	{name: "api_key_hash", defaultExpr: "''"},
+	{name: "auth_token_id", defaultExpr: "0"},
+	{name: "client_ip", defaultExpr: "''"},
+	{name: "base_url", defaultExpr: "''"},
+	{name: "service_tier", defaultExpr: "''"},
+	{name: "input_tokens", defaultExpr: "0"},
+	{name: "output_tokens", defaultExpr: "0"},
+	{name: "cache_read_input_tokens", defaultExpr: "0"},
+	{name: "cache_creation_input_tokens", defaultExpr: "0"},
+	{name: "cache_5m_input_tokens", defaultExpr: "0"},
+	{name: "cache_1h_input_tokens", defaultExpr: "0"},
+	{name: "cost", defaultExpr: "0"},
+	{name: "request_body", defaultExpr: "''"},
+	{name: "response_body", defaultExpr: "''"},
+}
+
+func (s *SQLStore) getLogColumnSet(ctx context.Context) (map[string]bool, error) {
+	s.logColumnsMu.RLock()
+	if s.logColumnSet != nil || s.logColumnsErr != nil {
+		set := s.logColumnSet
+		err := s.logColumnsErr
+		s.logColumnsMu.RUnlock()
+		return set, err
+	}
+	s.logColumnsMu.RUnlock()
+
+	s.logColumnsMu.Lock()
+	defer s.logColumnsMu.Unlock()
+	if s.logColumnSet != nil || s.logColumnsErr != nil {
+		return s.logColumnSet, s.logColumnsErr
+	}
+
+	rows, err := s.db.QueryContext(ctx, "SELECT * FROM logs LIMIT 0")
+	if err != nil {
+		s.logColumnsErr = fmt.Errorf("inspect logs columns: %w", err)
+		return nil, s.logColumnsErr
+	}
+	defer func() { _ = rows.Close() }()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		s.logColumnsErr = fmt.Errorf("read logs columns: %w", err)
+		return nil, s.logColumnsErr
+	}
+
+	set := make(map[string]bool, len(columns))
+	for _, name := range columns {
+		set[name] = true
+	}
+	s.logColumnSet = set
+	return set, nil
+}
+
+func (s *SQLStore) buildLogSelectList(ctx context.Context, tableAlias string) (string, error) {
+	columnSet, err := s.getLogColumnSet(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	aliasPrefix := ""
+	if tableAlias != "" {
+		aliasPrefix = tableAlias + "."
+	}
+
+	parts := make([]string, 0, len(logSelectColumns))
+	for _, col := range logSelectColumns {
+		if columnSet[col.name] {
+			parts = append(parts, aliasPrefix+col.name)
+			continue
+		}
+		if col.required {
+			return "", fmt.Errorf("logs table missing required column: %s", col.name)
+		}
+		parts = append(parts, fmt.Sprintf("%s AS %s", col.defaultExpr, col.name))
+	}
+
+	return strings.Join(parts, ", "), nil
+}
 
 func scanLogEntry(scanner interface {
 	Scan(...any) error
@@ -224,12 +323,14 @@ func (s *SQLStore) BatchAddLogs(ctx context.Context, logs []*model.LogEntry) err
 
 // ListLogs 查询日志列表
 func (s *SQLStore) ListLogs(ctx context.Context, since time.Time, limit, offset int, filter *model.LogFilter) ([]*model.LogEntry, error) {
+	selectList, err := s.buildLogSelectList(ctx, "logs")
+	if err != nil {
+		return nil, err
+	}
+
 	// 使用查询构建器构建复杂查询
 	// 消除 N+1：渠道过滤/名称解析用一次批量查询完成
-	baseQuery := `
-			SELECT id, time, model, actual_model, channel_id, status_code, message, duration, is_streaming, first_byte_time, api_key_used, api_key_hash, auth_token_id, client_ip, base_url, service_tier,
-				input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_5m_input_tokens, cache_1h_input_tokens, cost, request_body, response_body
-			FROM logs`
+	baseQuery := fmt.Sprintf("SELECT %s FROM logs", selectList)
 
 	// time字段现在是BIGINT毫秒时间戳，需要转换为Unix毫秒进行比较
 	sinceMs := since.UnixMilli()
@@ -307,10 +408,11 @@ func (s *SQLStore) CountLogs(ctx context.Context, since time.Time, filter *model
 
 // ListLogsRange 查询指定时间范围内的日志（支持精确日期范围如"昨日"）
 func (s *SQLStore) ListLogsRange(ctx context.Context, since, until time.Time, limit, offset int, filter *model.LogFilter) ([]*model.LogEntry, error) {
-	baseQuery := `
-		SELECT id, time, model, actual_model, channel_id, status_code, message, duration, is_streaming, first_byte_time, api_key_used, api_key_hash, auth_token_id, client_ip, base_url, service_tier,
-			input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_5m_input_tokens, cache_1h_input_tokens, cost, request_body, response_body
-		FROM logs`
+	selectList, err := s.buildLogSelectList(ctx, "logs")
+	if err != nil {
+		return nil, err
+	}
+	baseQuery := fmt.Sprintf("SELECT %s FROM logs", selectList)
 
 	sinceMs := since.UnixMilli()
 	untilMs := until.UnixMilli()
@@ -396,6 +498,11 @@ func (s *SQLStore) ListLogsRangeWithCount(ctx context.Context, since, until time
 	sinceMs := since.UnixMilli()
 	untilMs := until.UnixMilli()
 
+	selectList, err := s.buildLogSelectList(ctx, "logs")
+	if err != nil {
+		return nil, 0, err
+	}
+
 	// 1. resolveChannelFilter 只调用一次
 	channelIDs, isEmpty, err := s.resolveChannelFilter(ctx, filter)
 	if err != nil {
@@ -426,9 +533,7 @@ func (s *SQLStore) ListLogsRangeWithCount(ctx context.Context, since, until time
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		qb := NewQueryBuilder(`SELECT id, time, model, actual_model, channel_id, status_code, message, duration, is_streaming, first_byte_time, api_key_used, api_key_hash, auth_token_id, client_ip, base_url, service_tier,
-			input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, cache_5m_input_tokens, cache_1h_input_tokens, cost
-		FROM logs`).
+		qb := NewQueryBuilder(fmt.Sprintf("SELECT %s FROM logs", selectList)).
 			Where("time >= ?", sinceMs).
 			Where("time <= ?", untilMs)
 		applySharedConditions(qb)
